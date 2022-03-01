@@ -238,4 +238,20 @@
 #define SAFE_FREE(var)                                                         \
   do { if ((var) != NULL) { free((var)); var = NULL; } } while(0)
 
+/*
+ * ###################
+ * # String handling #
+ * ###################
+ */
+
+#define STRINGIFY(x) #x
+
+/**
+ * Convert a macro constant to string
+ * 
+ * @note Thread safe.
+ * @param x The macro constant.
+ */
+#define TOSTRING(x) STRINGIFY(x)
+
 #endif

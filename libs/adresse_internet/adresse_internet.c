@@ -256,7 +256,7 @@ int adresse_internet_to_sockaddr(adresse_internet *adresse,
 
   if (!adresse->is_resolved) {
     char port[PORT_MAX_STRLEN + 1];
-    snprintf(port, (size_t) PORT_MAX_STRLEN + 1, "%hu", htons(adresse->port));
+    snprintf(port, (size_t) PORT_MAX_STRLEN + 1, "%hu", adresse->port);
     CHECK_ERR_AND_FREE(resolve_adresse(adresse, port), -1);
   }
 
