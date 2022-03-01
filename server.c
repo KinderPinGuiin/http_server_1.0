@@ -14,6 +14,7 @@
 #include "c_utils.h"
 #include "adresse_internet.h"
 #include "http.h"
+#include "socket_tcp.h"
 
 // Port HTTP
 #define PORT 80
