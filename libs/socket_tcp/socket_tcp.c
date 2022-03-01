@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 #include <netinet/in.h>
 #include "c_utils.h"
 #include "adresse_internet.h"
@@ -20,7 +21,7 @@ typedef struct socket_tcp {
 } socket_tcp;
 
 int init_socket_tcp(socket_tcp *psocket) {
-  if (psocket == NULL) return 0;
+  if (psocket == NULL) return -1;
   psocket->socket = -1;
   psocket->local = NULL;
   psocket->distant = NULL;
@@ -110,6 +111,8 @@ int accept_socket_tcp(socket_tcp *s_listening, socket_tcp *s_service) {
   int fd;
   struct sockaddr_in addr_in;
   socklen_t addr_len;
+  memset(&addr_in, 0, sizeof(addr_in));
+  memset(&addr_len, 0, sizeof(addr_len));
   CHECK_ERR_AND_FREE(
     fd = accept(s_listening->socket, (struct sockaddr*) &addr_in, &addr_len), -1
   );
@@ -118,6 +121,7 @@ int accept_socket_tcp(socket_tcp *s_listening, socket_tcp *s_service) {
   sockaddr_to_adresse_internet((struct sockaddr *) &addr_in, addr);
   s_service->socket = fd;
   s_service->distant = addr;
+  s_service->local = NULL;
   s_service->is_connected = 1;
 
   r = 0;
@@ -150,7 +154,8 @@ free:
 }
 
 int close_socket_tcp(socket_tcp *socket) {
+  if (socket == NULL) return -1;
   if (socket->distant != NULL) adresse_internet_free(socket->distant);
   if (socket->local != NULL) adresse_internet_free(socket->local);
-  return (socket == NULL || socket->socket == -1) ? -1 : close(socket->socket);
+  return (socket->socket == -1) ? -1 : close(socket->socket);
 }

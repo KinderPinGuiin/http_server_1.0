@@ -17,7 +17,7 @@ typedef struct socket_tcp socket_tcp;
  * Renvoie 0 en cas de succès et -1 sinon.
  * 
  * @param psocket La structure à remplir.
- * @return        0 en cas de succès et 1 sinon.
+ * @return        0 en cas de succès et -1 sinon.
  */
 int init_socket_tcp(socket_tcp *psocket);
 
