@@ -79,6 +79,11 @@
 
 #define MIME_MAX_STRLEN 255
 
+/**
+ * Nombre maximum de header autorisé dans une requête / réponse.
+ */
+#define MAX_HEADER 256
+
 /*
  * Structures de données
  */
@@ -230,6 +235,15 @@ int http_response_to_str(http_response *res, size_t body_size, char *buff,
  */
 int http_response_add_header(http_response *res, const char *name, 
     const char *value);
+
+/**
+ * Renvoie la taille de la chaîne représentant res sans compter res->body.
+ * 
+ * @param res La réponse dont on souhaite connaître la taille.
+ * 
+ * @return    La taille de la chaîne représentant la réponse.
+ */
+size_t http_response_strlen(http_response *res);
 
 /**
  * Libère les ressources associées à res.

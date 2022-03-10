@@ -27,10 +27,8 @@
 #define KEY_MAX_STRLEN 64
 #define VALUE_MAX_STRLEN 512
 
-/**
- * Nombre maximum de header autorisé dans une requête / réponse.
- */
-#define MAX_HEADER 256
+// Internal Server Error -> 21
+#define MAX_MSG_STATUS_STRLEN 21
 
 /*
  * Macro-fonctions.
@@ -155,6 +153,11 @@ static void http_response_header_to_str(http_header *header, string_write *acc);
  *                  -1 en cas d'erreur.
  */
 static int read_line(int fd, char *buff, size_t buff_size);
+
+/**
+ * Ajoute à acc : strlen(header->key) + strlen(header->value) + 2
+ */
+static void add_header_strlen(http_header *header, size_t *acc);
 
 /*
  * Fonctions permettant de manipuler une requête
@@ -319,8 +322,8 @@ int http_response_to_str(http_response *res, size_t body_size, char *buff,
   CHECK_NULL(res);
   CHECK_NULL(buff);
   size_t left = buff_size;
-  char status_msg[21 + 1]; // Internal Server Error -> 21
-  if (!status_code_to_status_msg(res->status, status_msg, 21)) {
+  char status_msg[MAX_MSG_STATUS_STRLEN + 1];
+  if (!status_code_to_status_msg(res->status, status_msg, MAX_MSG_STATUS_STRLEN)) {
     r = -1;
     goto free;
   }
@@ -376,6 +379,21 @@ int http_response_add_header(http_response *res, const char *name,
   r = 1;
 free:
   return r;
+}
+
+size_t http_response_strlen(http_response *res) {
+  if (res == NULL) return 0;
+  // Ligne de réponse
+  size_t s = strlen("HTTP/1.x xxx ");
+  char status_msg[MAX_MSG_STATUS_STRLEN + 1];
+  status_code_to_status_msg(res->status, status_msg, MAX_MSG_STATUS_STRLEN);
+  s += strlen(status_msg) + 2; // + 2 pour \r\n
+  // Headers
+  list_apply(res->headers->headers, &s, 
+      (void (*)(void *, void *)) add_header_strlen);
+  s += 2; // \r\n
+
+  return s;
 }
 
 void http_response_free(http_response **res) {
@@ -556,4 +574,10 @@ static int read_line(int fd, char *buff, size_t buff_size) {
   }
 
   return r > 0 ? 1 : (int) r;
+}
+
+
+static void add_header_strlen(http_header *header, size_t *acc) {
+  // + 4 pour ": " et \r\n
+  *acc += strlen(header->key) + strlen(header->value) + 4;
 }

@@ -155,9 +155,7 @@ void *send_response(void *arg) {
   char file_path[MAX_URI_STRLEN + strlen(WEB_BASE) + 2];
   // Le "- 4" prend en compte le UL et les () de SIZE_MAX
   char file_size_str[strlen(TOSTRING(SIZE_MAX)) - 4 + 1];
-  char *response = malloc(MAX_RESPONSE_SIZE + 1);
-  CHECK_NULL(response);
-  memset(response, 0, MAX_RESPONSE_SIZE + 1);
+  char *response = NULL;
 
   // Lecture de la requête
   char msg[MAX_REQUEST_STRLEN + 1];
@@ -186,9 +184,8 @@ void *send_response(void *arg) {
   if ((fd = open(file_path, O_RDONLY)) < 0) {
     // Si celui-ci n'existe pas on renvoie une erreur 404
     if (errno == ENOENT) {
-      snprintf(response, MAX_RESPONSE_SIZE, "HTTP/1.0 404 Not Found\r\n\r\n");
-      write_socket_tcp(client, response, 
-          MIN(strlen(response), MAX_RESPONSE_SIZE));
+      const char *res = "HTTP/1.0 404 Not Found\r\n\r\n";
+      write_socket_tcp(client, res, MIN(strlen(res), MAX_RESPONSE_SIZE));
       goto free;
     }
   }
@@ -205,7 +202,7 @@ void *send_response(void *arg) {
   // Header : Content-Type
   CHECK_ERR_AND_FREE(
     http_response_add_header(
-      res, CONTENT_TYPE, get_mime_type(finder, file_path)), ERR
+        res, CONTENT_TYPE, get_mime_type(finder, file_path)), ERR
   );
   // Header : Content-Length
   sprintf(file_size_str, "%zu", (size_t) file_size);
@@ -219,10 +216,12 @@ void *send_response(void *arg) {
   CHECK_ERR_AND_FREE(readed = read(fd, res->body, (size_t) file_size), ERR);
 
   // Convertit la réponse en chaîne et l'envoie
-  http_response_to_str(res, (size_t) file_size, response, MAX_RESPONSE_SIZE);
-  write_socket_tcp(client, response, 
-      strlen(response) - strnlen((const char *) res->body, (size_t) readed) 
-      + (size_t) file_size);
+  size_t response_strlen = http_response_strlen(res) + (size_t) file_size;
+  response = malloc(response_strlen + 1);
+  CHECK_NULL(response);
+  memset(response, 0, response_strlen + 1);
+  http_response_to_str(res, (size_t) file_size, response, response_strlen);
+  write_socket_tcp(client, response, response_strlen);
 
 free:
   if (req != NULL) {
@@ -232,7 +231,7 @@ free:
     SAFE_FREE(res->body);
     http_response_free(&res);
   }
-  free(response);
+  SAFE_FREE(response);
   close_socket_tcp(client);
   free(client);
   free(arg);
