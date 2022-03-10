@@ -1,7 +1,5 @@
 /**
  * Module permettant de manipuler des sockets TCP facilement.
- * 
- * @author Jordan ELIE.
  */
 
 #ifndef _SOCKET_TCP

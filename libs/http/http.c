@@ -10,6 +10,7 @@
 #include "http.h"
 #include "hashtable.h"
 #include "c_utils.h"
+#include "list.h"
 
 /*
  * Macro-constantes.
@@ -59,7 +60,7 @@
  * @param invalid_cond La condition à vérifier en fin de parcours.
  * @param err_val      La valeur de *err si invalid_cond vaut 1.
  */
-#define READ_MSG_DATA(msg, str, sep, max_k, invalid_cond, err_val)                           \
+#define READ_MSG_DATA(msg, str, sep, max_k, invalid_cond, err_val)             \
   do {                                                                         \
     k = 0;                                                                     \
     while (*msg != 0 && *msg != sep && k < max_k) {                            \
@@ -97,8 +98,18 @@
  * Type contenant les headers d'une requête où d'une réponse.
  */
 typedef struct http_headers {
-  hashtable *headers;
+  list *headers;
 } http_headers;
+
+/**
+ * Type représentant un header http
+ */
+
+typedef struct http_header {
+#define HEADER_MAX_STRLEN 256
+  char key[HEADER_MAX_STRLEN + 1];
+  char value[HEADER_MAX_STRLEN + 1];
+} http_header;
 
 /**
  * Structure utilisée par la fonction http_response_header_to_str permettant
@@ -114,6 +125,11 @@ typedef struct string_write {
  */
 
 /**
+ * Fonctions de comparaison des http_header.
+ */
+int http_header_cmp(http_header *h1, http_header *h2);
+
+/**
  * L'une des fonctions de pré-hachage consillée par Kernighan et Pike pour 
  * les chaines de caractères.
  * 
@@ -121,13 +137,12 @@ typedef struct string_write {
  * 
  * @return  Le hachage de s.
  */
-static size_t str_hashfun(const char *s);
+// static size_t str_hashfun(const char *s);
 
 /**
  * Ecrit dans acc "key: val".
  */
-static void http_response_header_to_str(string_write *acc, const char *key, 
-    const char *val);
+static void http_response_header_to_str(http_header *header, string_write *acc);
 
 /**
  * Lit une ligne dans fd et la stock dans buff de taille maximum buff_size.
@@ -151,8 +166,8 @@ http_request *str_to_http_request(const char *str, int *err) {
   // Initialisation des variables
   char *str_p = (char *) str;
   size_t k = 0;
-  char *key = NULL;
-  char *value = NULL;
+  char key[HEADER_MAX_STRLEN + 1];
+  char value[HEADER_MAX_STRLEN + 1];
   // Allocation de la requête
   http_request *req = malloc(sizeof(*req) + strlen(str) + 1);
   http_headers *headers = NULL;
@@ -171,39 +186,26 @@ http_request *str_to_http_request(const char *str, int *err) {
   READ_MSG_DATA(str_p, version, '\r', FLOAT_MAX_STRLEN, 
     sscanf(version, "HTTP/%lf", &req->version) != 1, BAD_REQUEST);
   ++str_p;
-  // Lecture et ajout des headers dans la table de hachage
+  // Lecture et ajout des headers dans la liste
   headers = malloc(sizeof(*headers));
   CHECK_NULL_AND_FILL_ERR(headers, MEMORY_ERROR);
-  headers->headers = hashtable_empty(
-    (int (*)(const void *, const void *)) strcmp, 
-    (size_t (*)(const void *)) str_hashfun
-  );
+  headers->headers = init_list((int (*)(const void *, const void *)) http_header_cmp);
   CHECK_NULL_AND_FILL_ERR(headers->headers, MEMORY_ERROR);
   size_t i = 0;
   while (i < MAX_HEADER) {
     k = 0;
     // Allocation de la clé et de la valeur
-    key = malloc(KEY_MAX_STRLEN + 1);
-    CHECK_NULL_AND_FILL_ERR(key, MEMORY_ERROR);
-    memset(key, 0, KEY_MAX_STRLEN + 1);
-    value = malloc(VALUE_MAX_STRLEN + 1);
-    CHECK_NULL_AND_FILL_ERR(value, MEMORY_ERROR);
+    memset(key, 0, HEADER_MAX_STRLEN + 1);
+    memset(value, 0, HEADER_MAX_STRLEN + 1);
     // Lit la clé
-    while (*str_p != ':' && *str_p != '\n' && *str_p != 0) {
+    while (*str_p != ':' && *str_p != '\n' && *str_p != 0 && k < HEADER_MAX_STRLEN) {
       key[k] = *str_p;
       ++k;
       ++str_p;
     }
     if (strlen(key) == 1) {
       // Si l'on rencontre la ligne vide on sort de la boucle
-      free(key);
-      free(value);
       break;
-    }
-    // Vérifie que la requête soit bien valide
-    if (str_p == 0) {
-      *err = BAD_REQUEST;
-      goto free;
     }
     if (*str_p != ':' || *(++str_p) != ' ') {
       *err = BAD_REQUEST;
@@ -212,16 +214,19 @@ http_request *str_to_http_request(const char *str, int *err) {
     ++str_p;
     // Lit la valeur
     k = 0;
-    while (*str_p != '\n' && *str_p != 0) {
+    while (*str_p != '\n' && *str_p != 0 && k < HEADER_MAX_STRLEN) {
       value[k] = *str_p;
       ++k;
       ++str_p;
     }
     ++str_p;
-    CHECK_NULL_AND_FILL_ERR(hashtable_add(headers->headers, key, value), 
+    http_header header;
+    memset(header.key, 0, HEADER_MAX_STRLEN + 1);
+    memset(header.value, 0, HEADER_MAX_STRLEN + 1);
+    strncpy(header.key, key, HEADER_MAX_STRLEN + 1);
+    strncpy(header.value, value, HEADER_MAX_STRLEN + 1);
+    CHECK_NULL_AND_FILL_ERR(list_add(headers->headers, &header, sizeof(header)), 
       MEMORY_ERROR);
-    key = NULL;
-    value = NULL;
     ++i;
   }
   ++str_p;
@@ -233,10 +238,8 @@ http_request *str_to_http_request(const char *str, int *err) {
 free:
   SAFE_FREE(req);
   SAFE_FREE(headers);
-  SAFE_FREE(key);
-  SAFE_FREE(value);
   if (headers != NULL) {
-    hashtable_dispose(&headers->headers);
+    list_dispose(headers->headers);
   }
 exit:
   return req;
@@ -249,8 +252,8 @@ int is_method_valid(const char *method) {
     || strncmp(method, POST, MAX_METHOD_STRLEN)    == 0
     || strncmp(method, PUT, MAX_METHOD_STRLEN)     == 0
     || strncmp(method, DELETE, MAX_METHOD_STRLEN)  == 0
-    || strncmp(method, LINK, MAX_METHOD_STRLEN) == 0
-    || strncmp(method, UNLINK, MAX_METHOD_STRLEN)   == 0;
+    || strncmp(method, LINK, MAX_METHOD_STRLEN)    == 0
+    || strncmp(method, UNLINK, MAX_METHOD_STRLEN)  == 0;
 }
 
 int http_req_get_header(http_request *req, const char *header_name, char *buff, 
@@ -258,11 +261,11 @@ int http_req_get_header(http_request *req, const char *header_name, char *buff,
   if (req == NULL || header_name == NULL || buff == NULL) {
     return -1;
   }
-  const char *val;
-  if ((val = hashtable_search(req->headers->headers, header_name)) == NULL) {
+  http_header *header;
+  if ((header = list_get(req->headers->headers, header_name)) == NULL) {
     return 0;
   }
-  strncpy(buff, val, buff_size);
+  strncpy(buff, header->value, buff_size);
   return 1;
 }
 
@@ -281,7 +284,7 @@ int http_req_get_URI_base(http_request *req, char *buff, size_t buff_size) {
 }
 
 void http_request_free(http_request **req) {
-  hashtable_dispose(&(*req)->headers->headers);
+  list_dispose((*req)->headers->headers);
   free((*req)->headers);
   free(*req);
   *req = NULL;
@@ -299,10 +302,7 @@ http_response *http_response_empty() {
     free(res);
     goto free;
   }
-  res->headers->headers = hashtable_empty(
-    (int (*)(const void *, const void *)) strcmp, 
-    (size_t (*)(const void *)) str_hashfun
-  );
+  res->headers->headers = init_list((int (*)(const void *, const void *)) http_header_cmp);
   if (res->headers->headers == NULL) {
     free(res->headers);
     free(res);
@@ -337,8 +337,8 @@ int http_response_to_str(http_response *res, size_t body_size, char *buff,
     .str = buff,
     .max = left
   };
-  hashtable_apply(res->headers->headers, &str_w, 
-    (void (*)(void *, const void *, const void *)) http_response_header_to_str);
+  list_apply(res->headers->headers, &str_w, 
+    (void (*)(void *, void *)) http_response_header_to_str);
   if (buff == NULL) {
     r = 0;
     goto free;
@@ -367,28 +367,13 @@ int http_response_add_header(http_response *res, const char *name,
   CHECK_NULL(res);
   CHECK_NULL(name);
   CHECK_NULL(value);
-  // Copie du nom
-  size_t name_len = strlen(name);
-  char *name_cpy = malloc(name_len + 1);
-  CHECK_NULL(name_cpy);
-  memset(name_cpy, 0, name_len + 1);
-  strcpy(name_cpy, name);
-  // Copie de la valeur
-  size_t value_len = strlen(value);
-  char *value_cpy = malloc(value_len + 1);
-  if (value_cpy == NULL) {
-    free(name_cpy);
-    goto free;
-  }
-  memset(value_cpy, 0, value_len + 1);
-  strcpy(value_cpy, value);
-  // Ajout du couple nom valeur dans la table de hachage
-  const void *ptr = hashtable_add(res->headers->headers, name_cpy, value_cpy);
-  if (ptr == NULL) {
-    free(name_cpy);
-    free(value_cpy);
-    goto free;
-  }
+  // Ajout du couple nom valeur dans la liste
+  http_header header;
+  memset(&header.key, 0, HEADER_MAX_STRLEN + 1);
+  memset(&header.value, 0, HEADER_MAX_STRLEN + 1);
+  strncpy(header.key, name, HEADER_MAX_STRLEN);
+  strncpy(header.value, value, HEADER_MAX_STRLEN);
+  CHECK_NULL(list_add(res->headers->headers, &header, sizeof(header)));
 
   r = 1;
 free:
@@ -396,7 +381,7 @@ free:
 }
 
 void http_response_free(http_response **res) {
-  hashtable_dispose(&(*res)->headers->headers);
+  list_dispose((*res)->headers->headers);
   free((*res)->headers);
   free(*res);
   *res = NULL;
@@ -426,6 +411,10 @@ void http_err_to_string(FILE *out, int err) {
   }
 }
 
+int http_header_cmp(http_header *h1, http_header *h2) {
+  return strcmp(h1->key, h2->key);
+}
+/*
 static size_t str_hashfun(const char *s) {
   size_t h = 0;
   for (const unsigned char *p = (const unsigned char *) s; *p != 0; ++p) {
@@ -433,7 +422,7 @@ static size_t str_hashfun(const char *s) {
   }
 
   return h;
-}
+}*/
 
 int get_mime_type(const char *filename, char *buff, size_t buff_size) {
   if (buff_size) {}
@@ -513,21 +502,23 @@ int status_code_to_status_msg(int code, char *buff, size_t buff_size) {
   return 0;
 }
 
-static void http_response_header_to_str(string_write *acc, const char *key, 
-    const char *val) {
-  // Si acc vaut NULL alors il y a eu débordement
-  if (acc == NULL) {
+static void http_response_header_to_str(http_header *header, 
+    string_write *acc) {
+  // Si acc est égal à 0 alors il y a eu débordement
+  if (acc->max == 0) {
     return;
   }
+  char *key = header->key;
+  char *val = header->value;
   size_t length = strlen(key) + + strlen(": ") + strlen(val) + 3;
-  char header[length];
-  int writed = snprintf(header, length, "%s: %s\r\n", key, val);
+  char full_header[length];
+  int writed = snprintf(full_header, length, "%s: %s\r\n", key, val);
   if ((size_t) writed > length) {
     acc = NULL;
     return;
   }
-  strncat(acc->str, header, acc->max);
-  acc->max -= strlen(header);
+  strncat(acc->str, full_header, acc->max);
+  acc->max -= strlen(full_header) > acc->max ? acc->max : strlen(full_header);
 }
 
 static int read_line(int fd, char *buff, size_t buff_size) {

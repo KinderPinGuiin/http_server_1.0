@@ -1,3 +1,11 @@
+// TODO : Remplacer headers par liste
+// TODO : Taille de réponse variable
+// TODO : Charger table de hachage pour le mime.types
+// TODO : Logs
+// TODO : Config
+// TODO : Vérifier les ../ dans l'URL
+// TODO : Changer l'image
+
 #define VERBOSE
 #define _POSIX_C_SOURCE 200809L
 
@@ -31,12 +39,12 @@
 // Temporaire
 #define MAX_REQUEST_STRLEN 4096
 
-// Dossier racine où se trouve les différents fichiers html/css/js
+// Dossier racine où se trouvent les différents fichiers
 #define WEB_BASE "./www"
 
-// Taille maximale d'une réponse, celle-ci est susceptible d'être modifée si 
+// Taille maximale d'une réponse, celle-ci est susceptible d'être modifiée si 
 // dépassée via des realloc.
-#define MAX_RESPONSE_SIZE 2048
+#define MAX_RESPONSE_SIZE 200000
 
 /*
  * Types de données
@@ -78,7 +86,7 @@ int main(void) {
   SAFE_MALLOC(service, socket_tcp_get_size());
   CHECK_ERR_AND_FREE(listen_socket(sock, "127.0.0.1", PORT), ERR);
   while (accept_socket_tcp(sock, service) == 0) {
-    // Accepte les requêtes et créé un thread pour chaque socket de service
+    // Accepte les requêtes et crée un thread pour chaque socket de service
     pthread_t t;
     thread_arg *arg = malloc(sizeof(*arg));
     CHECK_NULL(arg);
@@ -176,7 +184,7 @@ void *send_response(void *arg) {
   // fichier demandé
   sprintf(file_path, "%s%s", WEB_BASE, uri_base);
 
-  // Ouvre le fichier demandé et calcul sa taille
+  // Ouvre le fichier demandé et calcule sa taille
   int fd;
   if ((fd = open(file_path, O_RDONLY)) < 0) {
     // Si celui-ci n'existe pas on renvoie une erreur 404
@@ -214,7 +222,7 @@ void *send_response(void *arg) {
   CHECK_NULL(res->body);
   CHECK_ERR_AND_FREE(readed = read(fd, res->body, (size_t) file_size), ERR);
 
-  // Convertit la réponse en chaîne et l'envoi
+  // Convertit la réponse en chaîne et l'envoie
   http_response_to_str(res, (size_t) file_size, response, MAX_RESPONSE_SIZE);
   write_socket_tcp(client, response, 
       strlen(response) - strnlen((const char *) res->body, (size_t) readed) 

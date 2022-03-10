@@ -1,7 +1,5 @@
 /**
  * A set of macro-functions that make the code more readable.
- * 
- * @author Jordan ELIE.
  */
 
 #ifndef C_UTILS

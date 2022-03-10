@@ -1,8 +1,6 @@
 /**
  * Bibliothèque permettant la manipulation de l'adressage pour des sockets
  * internet.
- * 
- * @author Jordan ELIE.
  */
 
 #ifndef ADRESSE_INTERNET_H

@@ -1,7 +1,5 @@
 /**
  * Implémentation de listes chaînées génériques simples thread-safe.
- * 
- * @author Jordan ELIE.
  */
 
 #ifndef LIST_H
@@ -22,7 +20,7 @@ typedef struct list list;
  * @return {list *} Un pointeur vers la liste en cas de succès ou NULL s'il 
  *                  n'y a pas assez de mémoire disponible.
  */
-list *init_list(int (*compar)(void *, void *));
+list *init_list(int (*compar)(const void *, const void *));
 
 /**
  * Ajoute dynamiquement elem à la liste pointée par p_list. Retourne l'élement
@@ -58,7 +56,7 @@ int list_remove(list *list_p, void *elem);
  * @return       L'élement en cas de succès et NULL si celui-ci n'est pas 
  *               trouvé ou si list_p ou elem est NULL.
  */
-void *list_get(list *list_p, void *elem);
+void *list_get(list *list_p, const void *elem);
 
 /**
  * Applique à tous les élements pointés par list_p la fonction apply.
@@ -67,10 +65,12 @@ void *list_get(list *list_p, void *elem);
  * nouvel accumulateur. Retourne l'accumilateur final.
  * 
  * @param {list *} La liste où l'on souhaite appliquer la fonction.
- * @param {int *(void *, int)} La fonction à appliquer
- * @return {int} L'accumulateur final.
+ * @param {void *} L'accumulateur de départ.
+ * @param {void *(void *, void *)} La fonction à appliquer.
+ * 
+ * @return {void *} L'accumulateur final.
  */
-int list_apply(list *list_p, int (*apply)(void *, int));
+void *list_apply(list *list_p, void *acc, void (*apply)(void *, void *));
 
 /**
  * Libère la liste pointée par list_p ansi que tous ses élements. Retourne 1

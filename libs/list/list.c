@@ -28,10 +28,10 @@ struct list {
   clist *head;
   clist *tail;
   size_t size;
-  int (*compar)(void *, void*);
+  int (*compar)(const void *, const void*);
 };
 
-list *init_list(int (*compar)(void *, void *)) {
+list *init_list(int (*compar)(const void *, const void *)) {
   list *list_p = malloc(sizeof(list));
   if (list_p == NULL) {
     return NULL;
@@ -81,7 +81,7 @@ void *list_add(list *list_p, void *elem, size_t elem_size) {
   return cell->value;
 }
 
-void *list_get(list *list_p, void *elem) {
+void *list_get(list *list_p, const void *elem) {
   if (list_p == NULL || elem == NULL) {
     return NULL;
   }
@@ -133,14 +133,13 @@ int list_remove(list *list_p, void *elem) {
   return r;
 }
 
-int list_apply(list *list_p, int (*apply)(void *, int)) {
-  if (list_p == NULL || apply == NULL) {
-    return NULL_ELEM;
+void *list_apply(list *list_p, void *acc, void (*apply)(void *, void *)) {
+  if (list_p == NULL || acc == NULL || apply == NULL) {
+    return NULL;
   }
   clist *cell = list_p->head;
-  int acc = 0;
   while (cell != NULL) {
-    acc = apply(cell->value, acc);
+    apply(cell->value, acc);
     cell = cell->next;
   }
 
