@@ -61,7 +61,7 @@ typedef struct thread_arg {
  * quittent le programme.
  */
 void handle_signals();
-void sig_free(int signum);
+void free_server(int signum);
 
 /**
  * Fonction appelée par un thread lors d'une requête sur le serveur.
@@ -80,7 +80,7 @@ int main(void) {
   handle_signals();
   int r = EXIT_SUCCESS;
   // Chargement du convertisseur MIME
-  CHECK_NULL(finder = mime_finder_load(&r));
+  CHECK_NULL(finder = mime_finder_load("./utils/mime.types", &r));
   // Création et mise en écoute de la socket serveur
   SAFE_MALLOC(sock, socket_tcp_get_size());
   CHECK_ERR_AND_FREE(init_socket_tcp(sock), ERR);
@@ -105,26 +105,12 @@ int main(void) {
   }
 
 free:
-  if (sock != NULL) {
-    if (close_socket_tcp(sock) < 0) {
-      r = ERR;
-      perror("Impossible de fermer la socket d'écoute ");
-    }
-    free(sock);
-  }
-  SAFE_FREE(service);
-  if (finder != NULL) {
-    mime_finder_dispose(&finder);
-  }
-  if (r < 0) {
-    http_err_to_string(stderr, r);
-  }
-  return r;
+  free_server(SIGINT);
 }
 
 void handle_signals() {
   struct sigaction action;
-  action.sa_handler = sig_free;
+  action.sa_handler = free_server;
   action.sa_flags = 0;
   CHECK_ERR_AND_EXIT(sigfillset(&action.sa_mask));
   // On associe l'action à différents signaux
@@ -134,7 +120,7 @@ void handle_signals() {
   CHECK_ERR_AND_EXIT(sigaction(SIGPIPE, &action, NULL));
 }
 
-void sig_free(int signum) {
+void free_server(int signum) {
   int r = EXIT_SUCCESS;
   if (signum == SIGPIPE) {
     fprintf(stderr, "Une erreur de transmission est survenue\n");

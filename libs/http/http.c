@@ -32,12 +32,6 @@
  */
 #define MAX_HEADER 256
 
-/**
- * Chemin vers la table de correspondance mime -> extension. Utilisée par
- * get_mime_type.
- */
-#define MIME_FILE "./mime.types"
-
 /*
  * Macro-fonctions.
  */
@@ -428,7 +422,7 @@ static size_t str_hashfun(const char *s) {
   return h;
 }
 
-mime_finder *mime_finder_load(int *err) {
+mime_finder *mime_finder_load(const char *mime_file_path, int *err) {
   // Initialisation des variables
   int r = -1;
   int mime_file = -1;
@@ -444,7 +438,7 @@ mime_finder *mime_finder_load(int *err) {
   CHECK_ERR_AND_FREE(line_max, -1);
   CHECK_NULL(finder);
   // Ouvre le fichier contenant les MIME
-  CHECK_ERR_AND_FREE(mime_file = open(MIME_FILE, O_RDONLY), -1);
+  CHECK_ERR_AND_FREE(mime_file = open(mime_file_path, O_RDONLY), -1);
   size_t k;
   // Lit le fichier ligne par ligne
   while (read_line(mime_file, line, (size_t) line_max) > 0) {

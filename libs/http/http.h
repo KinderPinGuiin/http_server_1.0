@@ -250,11 +250,17 @@ void http_response_free(http_response **res);
 void http_err_to_string(FILE *out, int err);
 
 /**
- * Charge un convertisseur d'extension en MIME. Renvoie NULL en cas d'erreur 
- * mémoire et place *err avec un entier négatif. En cas de succès la fonction 
- * renvoie un pointeur vers un mime_finder.
+ * Charge un convertisseur d'extension en MIME de chemin mime_file_path. 
+ * Renvoie NULL en cas d'erreur mémoire et place *err avec un entier négatif. 
+ * En cas de succès la fonction renvoie un pointeur vers un mime_finder.
+ * 
+ * @param mime_file_path Le chemin du fichier de conversion.
+ * @param err            Un pointeur d'erreur.
+ * 
+ * @return               NULL en cas d'erreur mémoire ou un pointeur vers
+ *                       un mime_finder en cas de succès.
  */
-mime_finder *mime_finder_load(int *err);
+mime_finder *mime_finder_load(const char *mime_file_path, int *err);
 
 /**
  * Renvoie le MIME associé à filename grâce à finder.
