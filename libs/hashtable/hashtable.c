@@ -170,6 +170,9 @@ const void *hashtable_add(hashtable *ht, const void *keyptr,
   }
   cell **pp = hashtable__search(ht, keyptr);
   if (*pp != NULL) {
+    free((void *) (*pp)->keyptr);
+    free((void *) (*pp)->valptr);
+    (*pp)->keyptr = keyptr;
     (*pp)->valptr = valptr;
   } else {
     if (ht->nfreeentries == 0) {

@@ -1,9 +1,7 @@
-// TODO : Remplacer headers par liste
 // TODO : Taille de réponse variable
-// TODO : Charger table de hachage pour le mime.types
+// TODO : Vérifier les ../ dans l'URL
 // TODO : Logs
 // TODO : Config
-// TODO : Vérifier les ../ dans l'URL
 // TODO : Changer l'image
 
 #define VERBOSE
@@ -63,7 +61,7 @@ typedef struct thread_arg {
  * quittent le programme.
  */
 void handle_signals();
-void sig_free();
+void sig_free(int signum);
 
 /**
  * Fonction appelée par un thread lors d'une requête sur le serveur.
@@ -75,12 +73,15 @@ void *send_response(void *arg);
 socket_tcp *sock = NULL;
 socket_tcp *service = NULL;
 adresse_internet *addr_in = NULL;
+mime_finder *finder = NULL;
 
 int main(void) {
   // Gestion des signaux
   handle_signals();
-  // Création et mise en écoute de la socket serveur
   int r = EXIT_SUCCESS;
+  // Chargement du convertisseur MIME
+  CHECK_NULL(finder = mime_finder_load(&r));
+  // Création et mise en écoute de la socket serveur
   SAFE_MALLOC(sock, socket_tcp_get_size());
   CHECK_ERR_AND_FREE(init_socket_tcp(sock), ERR);
   SAFE_MALLOC(service, socket_tcp_get_size());
@@ -112,6 +113,9 @@ free:
     free(sock);
   }
   SAFE_FREE(service);
+  if (finder != NULL) {
+    mime_finder_dispose(&finder);
+  }
   if (r < 0) {
     http_err_to_string(stderr, r);
   }
@@ -130,8 +134,12 @@ void handle_signals() {
   CHECK_ERR_AND_EXIT(sigaction(SIGPIPE, &action, NULL));
 }
 
-void sig_free() {
+void sig_free(int signum) {
   int r = EXIT_SUCCESS;
+  if (signum == SIGPIPE) {
+    fprintf(stderr, "Une erreur de transmission est survenue\n");
+    exit(EXIT_FAILURE);
+  }
   fprintf(stdout, "\nInterruption du serveur suite à un signal\n");
   if (sock != NULL) {
     if (close_socket_tcp(sock) < 0) {
@@ -143,6 +151,9 @@ void sig_free() {
   SAFE_FREE(service);
   if (addr_in != NULL) {
     adresse_internet_free(addr_in);
+  }
+  if (finder != NULL) {
+    mime_finder_dispose(&finder);
   }
 
   exit(r);
@@ -206,10 +217,9 @@ void *send_response(void *arg) {
   res->version = 1.0;
   res->status = 200;
   // Header : Content-Type
-  char mime[MIME_MAX_STRLEN + 1];
-  get_mime_type(file_path, mime, MIME_MAX_STRLEN);
   CHECK_ERR_AND_FREE(
-    http_response_add_header(res, CONTENT_TYPE, mime), ERR
+    http_response_add_header(
+      res, CONTENT_TYPE, get_mime_type(finder, file_path)), ERR
   );
   // Header : Content-Length
   sprintf(file_size_str, "%zu", (size_t) file_size);

@@ -111,6 +111,10 @@ typedef struct http_header {
   char value[HEADER_MAX_STRLEN + 1];
 } http_header;
 
+typedef struct mime_finder {
+  hashtable *ext_to_mime;
+} mime_finder;
+
 /**
  * Structure utilisée par la fonction http_response_header_to_str permettant
  * d'écrire dans une chaîne tout en ne dépassant pas sa limite de capacité.
@@ -137,7 +141,7 @@ int http_header_cmp(http_header *h1, http_header *h2);
  * 
  * @return  Le hachage de s.
  */
-// static size_t str_hashfun(const char *s);
+static size_t str_hashfun(const char *s);
 
 /**
  * Ecrit dans acc "key: val".
@@ -414,7 +418,7 @@ void http_err_to_string(FILE *out, int err) {
 int http_header_cmp(http_header *h1, http_header *h2) {
   return strcmp(h1->key, h2->key);
 }
-/*
+
 static size_t str_hashfun(const char *s) {
   size_t h = 0;
   for (const unsigned char *p = (const unsigned char *) s; *p != 0; ++p) {
@@ -422,63 +426,91 @@ static size_t str_hashfun(const char *s) {
   }
 
   return h;
-}*/
+}
 
-int get_mime_type(const char *filename, char *buff, size_t buff_size) {
-  if (buff_size) {}
+mime_finder *mime_finder_load(int *err) {
   // Initialisation des variables
   int r = -1;
   int mime_file = -1;
+  char *mime = NULL;
+  mime_finder *finder = malloc(sizeof(*finder));
+  hashtable *hashtable = hashtable_empty(
+    (int (*)(const void *, const void *)) strcmp,
+    (size_t (*)(const void *)) str_hashfun 
+  );
   long line_max = sysconf(_SC_LINE_MAX);
   char line[(line_max > 0 ? line_max : 0) + 1];
+  char buff[(line_max > 0 ? line_max : 0) + 1];
   CHECK_ERR_AND_FREE(line_max, -1);
-  // Vérifie les paramètres
-  CHECK_NULL(filename);
-  CHECK_NULL(buff);
-  // Extrait l'extension de filename
-  char *extension = strrchr(filename, '.') + 1;
-  CHECK_NULL(extension);
+  CHECK_NULL(finder);
   // Ouvre le fichier contenant les MIME
   CHECK_ERR_AND_FREE(mime_file = open(MIME_FILE, O_RDONLY), -1);
   size_t k;
-  int found = 0;
   // Lit le fichier ligne par ligne
-  while (!found && read_line(mime_file, line, (size_t) line_max) > 0) {
+  while (read_line(mime_file, line, (size_t) line_max) > 0) {
     if (line[0] == '#') {
       continue;
     }
     k = 0;
     // Récupère le MIME de la ligne
-    while (k < buff_size && line[k] != '\t') {
+    memset(buff, 0, (size_t) line_max + 1);
+    while (k < (size_t) line_max && line[k] != '\t') {
       buff[k] = line[k];
       ++k;
     }
-    buff[k] = 0;
     // Lit l'extension associée
     while (line[k] == '\t') {
       ++k;
     }
     line[strlen(line) - 2] = 0;
-    // Vérifie que l'extension soit bien celle demandée
+    // Vérifie que l'extension soit bien celle demandée 
+    // (Il peut y avoir plusieurs extensions par MIME)
     char *saveptr;
-    char *token = strtok_r(line + k, " ", &saveptr);
+    char *extension = strtok_r(line + k, " ", &saveptr);
+    char *extension_malloc = NULL;
     do {
-      if (strcmp(token, extension) == 0) {
-        found = 1;
-      }
-    } while ((token = strtok_r(NULL, " ", &saveptr)) != NULL);
+      SAFE_MALLOC(mime, strlen(buff) + 1);
+      strcpy(mime, buff);
+      SAFE_MALLOC(extension_malloc, strlen(extension) + 1);
+      strcpy(extension_malloc, extension);
+      CHECK_NULL(hashtable_add(hashtable, extension_malloc, mime));
+    } while ((extension = strtok_r(NULL, " ", &saveptr)) != NULL);
+    mime = NULL;
   }
-  if (!found) {
-    r = 0;
-    goto free;
-  }
+  finder->ext_to_mime = hashtable;
 
   r = 1;
 free:
   if (mime_file > -1) {
     if (close(mime_file) < 0) r = -1;
   }
-  return r;
+  if (r < 0) {
+    free(finder);
+    hashtable_dispose(&hashtable);
+  }
+  SAFE_FREE(mime);
+  *err = r;
+
+  return r < 0 ? NULL : finder;
+}
+
+const char *get_mime_type(mime_finder *finder, const char *filename) {
+  if (finder == NULL || filename == NULL) return NULL;
+  // Extrait l'extension de filename
+  char *extension = strrchr(filename, '.') + 1;
+  if (extension == NULL) {
+    // Fichier sans extension
+    return NULL;
+  }
+  // Cherche dans le finder le MIME et le retourne
+  return hashtable_search(finder->ext_to_mime, extension);
+}
+
+void mime_finder_dispose(mime_finder **finder) {
+  if (*finder == NULL) return;
+  hashtable_dispose(&(*finder)->ext_to_mime);
+  free(*finder);
+  *finder = NULL;
 }
 
 int status_code_to_status_msg(int code, char *buff, size_t buff_size) {

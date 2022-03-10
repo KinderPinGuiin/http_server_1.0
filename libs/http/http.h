@@ -113,6 +113,12 @@ typedef struct http_response {
   void *body;
 } http_response;
 
+/**
+ * Structure permettant de convertir une extension en MIME.
+ */
+
+typedef struct mime_finder mime_finder;
+
 /*
  * Fonctions permettant de manipuler une requête.
  */
@@ -244,17 +250,29 @@ void http_response_free(http_response **res);
 void http_err_to_string(FILE *out, int err);
 
 /**
- * Stock dans buff au maximum buff_size octets qui seront le type MIME du 
- * fichier de chemin filename.
- * 
- * @param filename  Le nom du fichier dont on souhaite récupérer le MIME.
- * @param buff      Le buffer où stocker le MIME.
- * @param buff_size La taille maximale de buff.
- * 
- * @return          1 en cas de succès et -1 sinon. Renvoie 0 si le MIME associé
- *                  à filename n'est pas trouvé.
+ * Charge un convertisseur d'extension en MIME. Renvoie NULL en cas d'erreur 
+ * mémoire et place *err avec un entier négatif. En cas de succès la fonction 
+ * renvoie un pointeur vers un mime_finder.
  */
-int get_mime_type(const char *filename, char *buff, size_t buff_size);
+mime_finder *mime_finder_load(int *err);
+
+/**
+ * Renvoie le MIME associé à filename grâce à finder.
+ * 
+ * @param finder    Le MIME finder chargé par mime_finder_load.
+ * @param filename  Le nom du fichier dont on souhaite récupérer le MIME.
+ * 
+ * @return          Le MIME en cas de succès ou NULL en cas d'erreur ou s'il 
+ *                  n'est pas trouvé.
+ */
+const char *get_mime_type(mime_finder *finder, const char *filename);
+
+/**
+ * Libère les ressources associées à finder.
+ * 
+ * @param finder Le finder à libérer.
+ */
+void mime_finder_dispose(mime_finder **finder);
 
 /**
  * Ecrit dans buff au maximum buff_size caractères le message correspondant au 
