@@ -40,10 +40,6 @@
 // Dossier racine où se trouvent les différents fichiers
 #define WEB_BASE "./www"
 
-// Taille maximale d'une réponse, celle-ci est susceptible d'être modifiée si 
-// dépassée via des realloc.
-#define MAX_RESPONSE_SIZE 200000
-
 /*
  * Types de données
  */
@@ -185,7 +181,7 @@ void *send_response(void *arg) {
     // Si celui-ci n'existe pas on renvoie une erreur 404
     if (errno == ENOENT) {
       const char *res = "HTTP/1.0 404 Not Found\r\n\r\n";
-      write_socket_tcp(client, res, MIN(strlen(res), MAX_RESPONSE_SIZE));
+      write_socket_tcp(client, res, strlen(res));
       goto free;
     }
   }

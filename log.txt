@@ -1,0 +1,41 @@
+Lecture des listes de paquets…
+Construction de l'arbre des dépendances…
+Lecture des informations d'état…
+Les paquets supplémentaires suivants seront installés : 
+  php-common php7.4-cli php7.4-common php7.4-json php7.4-opcache
+  php7.4-readline
+Paquets suggérés :
+  php-pear
+Les NOUVEAUX paquets suivants seront installés :
+  php-common php7.4-cgi php7.4-cli php7.4-common php7.4-json php7.4-opcache
+  php7.4-readline
+0 mis à jour, 7 nouvellement installés, 0 à enlever et 89 non mis à jour.
+Il est nécessaire de prendre 4 034 ko dans les archives.
+Après cette opération, 22,6 Mo d'espace disque supplémentaires seront utilisés.
+Souhaitez-vous continuer ? [O/n] o
+
+Ign :1 http://fr.archive.ubuntu.com/ubuntu groovy/main amd64 php-common all 2:76
+Err :2 http://fr.archive.ubuntu.com/ubuntu groovy-updates/main amd64 php7.4-common amd64 7.4.9-1ubuntu1.2
+  404  Not Found [IP : 51.158.154.169 80]
+Err :3 http://fr.archive.ubuntu.com/ubuntu groovy-updates/main amd64 php7.4-json amd64 7.4.9-1ubuntu1.2
+  404  Not Found [IP : 51.158.154.169 80]
+Err :4 http://fr.archive.ubuntu.com/ubuntu groovy-updates/main amd64 php7.4-opcache amd64 7.4.9-1ubuntu1.2
+  404  Not Found [IP : 51.158.154.169 80]
+Err :5 http://fr.archive.ubuntu.com/ubuntu groovy-updates/main amd64 php7.4-readline amd64 7.4.9-1ubuntu1.2
+  404  Not Found [IP : 51.158.154.169 80]
+Err :6 http://fr.archive.ubuntu.com/ubuntu groovy-updates/main amd64 php7.4-cli amd64 7.4.9-1ubuntu1.2
+  404  Not Found [IP : 51.158.154.169 80]
+Err :7 http://fr.archive.ubuntu.com/ubuntu groovy-updates/main amd64 php7.4-cgi amd64 7.4.9-1ubuntu1.2
+  404  Not Found [IP : 51.158.154.169 80]
+Err :1 http://fr.archive.ubuntu.com/ubuntu groovy/main amd64 php-common all 2:76
+  404  Not Found [IP : 51.158.154.169 80]
+  
+E: Impossible de récupérer http://fr.archive.ubuntu.com/ubuntu/pool/main/p/php-defaults/php-common_76_all.deb  404  Not Found [IP : 51.158.154.169 80]
+E: Impossible de récupérer http://fr.archive.ubuntu.com/ubuntu/pool/main/p/php7.4/php7.4-common_7.4.9-1ubuntu1.2_amd64.deb  404  Not Found [IP : 51.158.154.169 80]
+E: Impossible de récupérer http://fr.archive.ubuntu.com/ubuntu/pool/main/p/php7.4/php7.4-json_7.4.9-1ubuntu1.2_amd64.deb  404  Not Found [IP : 51.158.154.169 80]
+E: Impossible de récupérer http://fr.archive.ubuntu.com/ubuntu/pool/main/p/php7.4/php7.4-opcache_7.4.9-1ubuntu1.2_amd64.deb  404  Not Found [IP : 51.158.154.169 80]
+E: Impossible de récupérer http://fr.archive.ubuntu.com/ubuntu/pool/main/p/php7.4/php7.4-readline_7.4.9-1ubuntu1.2_amd64.deb  404  Not Found [IP : 51.158.154.169 80]
+E: Impossible de récupérer http://fr.archive.ubuntu.com/ubuntu/pool/main/p/php7.4/php7.4-cli_7.4.9-1ubuntu1.2_amd64.deb  404  Not Found [IP : 51.158.154.169 80]
+E: Impossible de récupérer http://fr.archive.ubuntu.com/ubuntu/pool/main/p/php7.4/php7.4-cgi_7.4.9-1ubuntu1.2_amd64.deb  404  Not Found [IP : 51.158.154.169 80]
+E: Impossible de récupérer certaines archives, peut-être devrez-vous lancer apt-get update ou essayer avec --fix-missing ?
+
