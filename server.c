@@ -10,12 +10,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <limits.h>
+#include <semaphore.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -39,10 +42,15 @@
 
 #define DEFAULT_BACKLOG 100
 
-#define MAX_REQUEST_STRLEN 4096
 
 // Dossier racine où se trouvent les différents fichiers
 #define DEFAULT_WEB_BASE "./www"
+
+#define MAX_REQUEST_STRLEN 4096
+
+#define MIME_FINDER_FILE "./utils/mime.types"
+
+#define DATE_MAX_STRLEN 24
 
 /*
  * Types de données
@@ -70,18 +78,39 @@ void free_server(int signum);
  */
 void *send_response(void *arg);
 
+/**
+ * Ecrit dans fd la chaîne de format format avec les arguments à la suite.
+ * Le message sera précédé par la date. Renvoie 1 en cas de succès et 0 sinon.
+ * 
+ * @param fd     Le descripteur où écrire.
+ * @param format Le format.
+ * @param ...    Les arguments de la chaîne format.
+ * 
+ * @return       1 en cas de succès, -1 sinon.
+ */
+int log_in_file(int fd, const char *format, ...);
+
+// Sockets
 socket_tcp *sock = NULL;
 socket_tcp *service = NULL;
 adresse_internet *addr_in = NULL;
+
+// MIME finder
 mime_finder *finder = NULL;
+
+// Configuration
 yml_parser *conf = NULL;
+
+// Logs
+sem_t log_sem;
+int requests_log_fd = -1;
 
 int main(void) {
   // Gestion des signaux
   handle_signals();
   int r = EXIT_SUCCESS;
   // Chargement du convertisseur MIME
-  CHECK_NULL(finder = mime_finder_load("./utils/mime.types", &r));
+  CHECK_NULL(finder = mime_finder_load(MIME_FINDER_FILE, &r));
   
   // Chargement de la configuration
   CHECK_NULL(conf = init_yml_parser("./conf/server.yml", NULL));
@@ -94,6 +123,13 @@ int main(void) {
   CHECK_ERR_AND_FREE(get(conf, "ip", &ip), ERR);
   CHECK_ERR_AND_FREE(get(conf, "backlog", &backlog), ERR);
   
+  // Initialisation du semaphore de log et ouverture du fichier
+  CHECK_ERR_AND_FREE(
+    requests_log_fd = open("./logs/requests.log", O_CREAT | O_APPEND 
+        | O_WRONLY, S_IWUSR | S_IRUSR), -1
+  );
+  CHECK_ERR_AND_FREE(sem_init(&log_sem, 1, 1), ERR);
+
   // Création et mise en écoute de la socket serveur
   SAFE_MALLOC(sock, socket_tcp_get_size());
   CHECK_ERR_AND_FREE(init_socket_tcp(sock), ERR);
@@ -160,6 +196,9 @@ void free_server(int signum) {
 			r = EXIT_FAILURE;
 		}
 	}
+  if (requests_log_fd > 0) {
+    close(requests_log_fd);
+  }
 
   exit(r);
 }
@@ -180,6 +219,7 @@ void *send_response(void *arg) {
   // Le "- 4" prend en compte le UL et les () de SIZE_MAX
   char file_size_str[strlen(TOSTRING(SIZE_MAX)) - 4 + 1];
   char *response = NULL;
+  int fd = -1;
 
   // Lecture de la requête
   char msg[MAX_REQUEST_STRLEN + 1];
@@ -203,9 +243,13 @@ void *send_response(void *arg) {
   // fichier demandé
   sprintf(file_path, "%s%s", web_base, uri_base);
 
+  // Logs
+  CHECK_ERR_AND_FREE(
+    log_in_file(requests_log_fd, "A client requested %s\n", uri_base), ERR
+  );
+
   // Ouvre le fichier demandé et calcule sa taille
-  int fd;
-  if ((fd = open(file_path, O_RDONLY)) < 0) {
+  if (strstr(file_path, "../") != NULL || (fd = open(file_path, O_RDONLY)) < 0) {
     // Si celui-ci n'existe pas on renvoie une erreur 404
     if (errno == ENOENT) {
       const char *res = "HTTP/1.0 404 Not Found\r\n\r\n";
@@ -255,9 +299,38 @@ free:
     SAFE_FREE(res->body);
     http_response_free(&res);
   }
+  if (fd > 0) {
+    close(fd);
+  }
   SAFE_FREE(response);
   close_socket_tcp(client);
   free(client);
   free(arg);
   pthread_exit(&r);
+}
+
+int log_in_file(int fd, const char *format, ...) {
+  int r = 1;
+  va_list args;
+  va_start(args, format);
+
+  CHECK_ERR_AND_FREE(sem_wait(&log_sem), -1);
+
+  // Log la date
+  struct tm t;
+  time_t timestamp;
+  CHECK_ERR_AND_FREE(time(&timestamp), -1);
+  CHECK_NULL(localtime_r(&timestamp, &t));
+  char date[DATE_MAX_STRLEN + 1];
+  CHECK_NULL(asctime_r(&t, date));
+  date[strlen(date) - 1] = 0;
+  dprintf(fd, "[%s]: ", date);
+  // Log le message
+  vdprintf(fd, format, args);
+
+  CHECK_ERR_AND_FREE(sem_post(&log_sem), -1);
+
+free:
+  va_end(args);
+  return r;
 }
