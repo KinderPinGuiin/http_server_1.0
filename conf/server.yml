@@ -1,0 +1,11 @@
+# IP du serveur HTTP
+ip: "127.0.0.1"
+
+# Port
+port: 8080
+
+# Backlog (File d'attente)
+backlog: 10
+
+# Dossier où se trouvent les fichiers du serveur web depuis server.c
+www: "./www"

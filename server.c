@@ -1,4 +1,5 @@
-// TODO : Taille de réponse variable
+// TODO : Liste des descripteurs / free tous les threads
+// TODO : If-Modified-Since
 // TODO : Vérifier les ../ dans l'URL
 // TODO : Logs
 // TODO : Config
@@ -14,6 +15,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -22,23 +24,25 @@
 #include "adresse_internet.h"
 #include "http.h"
 #include "socket_tcp.h"
+#include "yml_parser.h"
 
 /*
  * Macro-constantes
  */
 
 // Port HTTP
-#define PORT 80
+#define DEFAULT_PORT 80
+
+#define DEFAULT_IP "127.0.0.1"
 
 #define ERR EXIT_FAILURE
 
-#define BACKLOG 100
+#define DEFAULT_BACKLOG 100
 
-// Temporaire
 #define MAX_REQUEST_STRLEN 4096
 
 // Dossier racine où se trouvent les différents fichiers
-#define WEB_BASE "./www"
+#define DEFAULT_WEB_BASE "./www"
 
 /*
  * Types de données
@@ -70,6 +74,7 @@ socket_tcp *sock = NULL;
 socket_tcp *service = NULL;
 adresse_internet *addr_in = NULL;
 mime_finder *finder = NULL;
+yml_parser *conf = NULL;
 
 int main(void) {
   // Gestion des signaux
@@ -77,11 +82,23 @@ int main(void) {
   int r = EXIT_SUCCESS;
   // Chargement du convertisseur MIME
   CHECK_NULL(finder = mime_finder_load("./utils/mime.types", &r));
+  
+  // Chargement de la configuration
+  CHECK_NULL(conf = init_yml_parser("./conf/server.yml", NULL));
+  CHECK_ERR_AND_FREE(exec_parser(conf), ERR);
+  int port = DEFAULT_PORT;
+  char ip[INET_ADDRSTRLEN + 1];
+  int backlog = DEFAULT_BACKLOG;
+  strncpy(ip, DEFAULT_IP, INET_ADDRSTRLEN + 1);
+  CHECK_ERR_AND_FREE(get(conf, "port", &port), ERR);
+  CHECK_ERR_AND_FREE(get(conf, "ip", &ip), ERR);
+  CHECK_ERR_AND_FREE(get(conf, "backlog", &backlog), ERR);
+  
   // Création et mise en écoute de la socket serveur
   SAFE_MALLOC(sock, socket_tcp_get_size());
   CHECK_ERR_AND_FREE(init_socket_tcp(sock), ERR);
   SAFE_MALLOC(service, socket_tcp_get_size());
-  CHECK_ERR_AND_FREE(listen_socket(sock, "127.0.0.1", PORT), ERR);
+  CHECK_ERR_AND_FREE(listen_socket(sock, ip, (uint16_t) port, backlog), ERR);
   while (accept_socket_tcp(sock, service) == 0) {
     // Accepte les requêtes et crée un thread pour chaque socket de service
     pthread_t t;
@@ -137,6 +154,12 @@ void free_server(int signum) {
   if (finder != NULL) {
     mime_finder_dispose(&finder);
   }
+  if (conf != NULL) {
+		if (free_parser(conf) < 0) {
+			perror("Erreur lors de la libération du parseur yml ");
+			r = EXIT_FAILURE;
+		}
+	}
 
   exit(r);
 }
@@ -145,10 +168,15 @@ void *send_response(void *arg) {
   socket_tcp *client = ((thread_arg *) arg)->socket;
   int r = EXIT_SUCCESS;
 
+	// Chargement de la configuration
+	char web_base[PATH_MAX + 1];
+	strncpy(web_base, DEFAULT_WEB_BASE, PATH_MAX);
+	get(conf, "www", web_base);
+
   // Initialisation des variables
   http_request *req = NULL;
   http_response *res = NULL;
-  char file_path[MAX_URI_STRLEN + strlen(WEB_BASE) + 2];
+  char file_path[MAX_URI_STRLEN + strlen(web_base) + 2];
   // Le "- 4" prend en compte le UL et les () de SIZE_MAX
   char file_size_str[strlen(TOSTRING(SIZE_MAX)) - 4 + 1];
   char *response = NULL;
@@ -173,7 +201,7 @@ void *send_response(void *arg) {
   }
   // Concatène le chemin demandé avec WEB_BASE afin récupérer le chemin final du
   // fichier demandé
-  sprintf(file_path, "%s%s", WEB_BASE, uri_base);
+  sprintf(file_path, "%s%s", web_base, uri_base);
 
   // Ouvre le fichier demandé et calcule sa taille
   int fd;

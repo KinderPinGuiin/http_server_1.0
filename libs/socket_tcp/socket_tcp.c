@@ -68,7 +68,7 @@ exit:
   return r;
 }
 
-int listen_socket(socket_tcp *isocket, const char *addr, uint16_t port) {
+int listen_socket(socket_tcp *isocket, const char *addr, uint16_t port, int backlog) {
   int r = -1;
   adresse_internet *local = NULL;
   CHECK_NULL(isocket);
@@ -89,7 +89,7 @@ int listen_socket(socket_tcp *isocket, const char *addr, uint16_t port) {
   CHECK_ERR_AND_FREE(
     bind(isocket->socket, (struct sockaddr *) &addr_in, sizeof(addr_in)), -1
   );
-  CHECK_ERR_AND_FREE(listen(isocket->socket, 10), -1);
+  CHECK_ERR_AND_FREE(listen(isocket->socket, backlog), -1);
   isocket->is_listening = 1;
 
   r = 0;

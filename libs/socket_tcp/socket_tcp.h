@@ -44,10 +44,11 @@ int connect_socket(socket_tcp *osocket, const char *addr, uint16_t port);
  * @param isocket La socket à faire écouter.
  * @param addr    L'adresse où écouter.
  * @param port    Le port.
+ * @param backlog La backlog.
  * 
  * @return        0 en cas de succès et -1 sinon.
  */
-int listen_socket(socket_tcp *isocket, const char *addr, uint16_t port);
+int listen_socket(socket_tcp *isocket, const char *addr, uint16_t port, int backlog);
 
 /**
  * Met la socket_tcp pointée par s_listening en attente de connexion. Lors d'une
