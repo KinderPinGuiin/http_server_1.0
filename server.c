@@ -1,8 +1,6 @@
 // TODO : Liste des descripteurs / free tous les threads
+// TODO : Select pour lire la requête
 // TODO : If-Modified-Since
-// TODO : Vérifier les ../ dans l'URL
-// TODO : Logs
-// TODO : Config
 // TODO : Changer l'image
 
 #define VERBOSE
@@ -45,6 +43,8 @@
 
 // Dossier racine où se trouvent les différents fichiers
 #define DEFAULT_WEB_BASE "./www"
+
+#define DEFAULT_404_FILE "./www/404.html"
 
 #define MAX_REQUEST_STRLEN 4096
 
@@ -89,6 +89,21 @@ void *send_response(void *arg);
  * @return       1 en cas de succès, -1 sinon.
  */
 int log_in_file(int fd, const char *format, ...);
+
+/**
+ * Envoi la réponse http res associée à la requête req. La réponse aura le 
+ * statut status et le chemin du corps sera file_path.
+ * 
+ * @param client    La socket sur laquelle envoyer la réponse.
+ * @param req       La requête.
+ * @param res       La réponse.
+ * @param status    Le statut de la réponse.
+ * @param file_path Le chemin du corps de la réponse.
+ * 
+ * @return          1 en cas de succès et -1 sinon.
+ */
+int send_http_response(socket_tcp *client, http_request *req, http_response *res, 
+    int status, const char *file_path);
 
 // Sockets
 socket_tcp *sock = NULL;
@@ -205,7 +220,7 @@ void free_server(int signum) {
 
 void *send_response(void *arg) {
   socket_tcp *client = ((thread_arg *) arg)->socket;
-  int r = EXIT_SUCCESS;
+  int r = ERR;
 
 	// Chargement de la configuration
 	char web_base[PATH_MAX + 1];
@@ -216,10 +231,6 @@ void *send_response(void *arg) {
   http_request *req = NULL;
   http_response *res = NULL;
   char file_path[MAX_URI_STRLEN + strlen(web_base) + 2];
-  // Le "- 4" prend en compte le UL et les () de SIZE_MAX
-  char file_size_str[strlen(TOSTRING(SIZE_MAX)) - 4 + 1];
-  char *response = NULL;
-  int fd = -1;
 
   // Lecture de la requête
   char msg[MAX_REQUEST_STRLEN + 1];
@@ -248,61 +259,20 @@ void *send_response(void *arg) {
     log_in_file(requests_log_fd, "A client requested %s\n", uri_base), ERR
   );
 
-  // Ouvre le fichier demandé et calcule sa taille
-  if (strstr(file_path, "../") != NULL || (fd = open(file_path, O_RDONLY)) < 0) {
-    // Si celui-ci n'existe pas on renvoie une erreur 404
-    if (errno == ENOENT) {
-      const char *res = "HTTP/1.0 404 Not Found\r\n\r\n";
-      write_socket_tcp(client, res, strlen(res));
-      goto free;
-    }
-  }
-  off_t file_size;
-  CHECK_ERR_AND_FREE((int) (file_size = lseek(fd, 0, SEEK_END)), ERR);
-  CHECK_ERR_AND_FREE((int) (lseek(fd, 0, SEEK_SET)), ERR);
-
   // Créé la réponse et la remplit avec les données du fichier
   res = http_response_empty();
   CHECK_NULL(res);
-  // Version et statut
-  res->version = 1.0;
-  res->status = 200;
-  // Header : Content-Type
-  CHECK_ERR_AND_FREE(
-    http_response_add_header(
-        res, CONTENT_TYPE, get_mime_type(finder, file_path)), ERR
-  );
-  // Header : Content-Length
-  sprintf(file_size_str, "%zu", (size_t) file_size);
-  CHECK_ERR_AND_FREE(
-    http_response_add_header(res, CONTENT_LENGTH, file_size_str), ERR
-  );
-  // Corps de la réponse
-  ssize_t readed;
-  res->body = malloc((size_t) file_size);
-  CHECK_NULL(res->body);
-  CHECK_ERR_AND_FREE(readed = read(fd, res->body, (size_t) file_size), ERR);
+  // Envoi la réponse
+  CHECK_ERR_AND_FREE(send_http_response(client, req, res, 200, file_path), ERR);
 
-  // Convertit la réponse en chaîne et l'envoie
-  size_t response_strlen = http_response_strlen(res) + (size_t) file_size;
-  response = malloc(response_strlen + 1);
-  CHECK_NULL(response);
-  memset(response, 0, response_strlen + 1);
-  http_response_to_str(res, (size_t) file_size, response, response_strlen);
-  write_socket_tcp(client, response, response_strlen);
-
+  r = EXIT_SUCCESS;
 free:
   if (req != NULL) {
     http_request_free(&req);
   }
   if (res != NULL) {
-    SAFE_FREE(res->body);
     http_response_free(&res);
   }
-  if (fd > 0) {
-    close(fd);
-  }
-  SAFE_FREE(response);
   close_socket_tcp(client);
   free(client);
   free(arg);
@@ -332,5 +302,60 @@ int log_in_file(int fd, const char *format, ...) {
 
 free:
   va_end(args);
+  return r;
+}
+
+int send_http_response(socket_tcp *client, http_request *req, http_response *res, 
+    int status, const char *file_path) {
+  int r = -1;
+  // Le "- 4" prend en compte le UL et les () de SIZE_MAX
+  char file_size_str[strlen(TOSTRING(SIZE_MAX)) - 4 + 1];
+  char *response = NULL;
+
+  // Ouvre le fichier demandé et calcule sa taille
+  int fd = -1;
+  if (strstr(file_path, "../") != NULL || (fd = open(file_path, O_RDONLY)) < 0) {
+    // Si celui-ci n'existe pas on renvoie une erreur 404
+    send_http_response(client, req, res, 404, DEFAULT_404_FILE);
+    goto free;
+  }
+  off_t file_size;
+  CHECK_ERR_AND_FREE((int) (file_size = lseek(fd, 0, SEEK_END)), -1);
+  CHECK_ERR_AND_FREE((int) (lseek(fd, 0, SEEK_SET)), -1);
+
+  // Version et statut
+  res->version = 1.0;
+  res->status = status;
+  // Header : Content-Type
+  CHECK_ERR_AND_FREE(
+    http_response_add_header(
+        res, CONTENT_TYPE, get_mime_type(finder, file_path)), -1
+  );
+  // Header : Content-Length
+  sprintf(file_size_str, "%zu", (size_t) file_size);
+  CHECK_ERR_AND_FREE(
+    http_response_add_header(res, CONTENT_LENGTH, file_size_str), -1
+  );
+  // Corps de la réponse
+  ssize_t readed;
+  res->body = malloc((size_t) file_size);
+  CHECK_NULL(res->body);
+  CHECK_ERR_AND_FREE(readed = read(fd, res->body, (size_t) file_size), -1);
+
+  // Convertit la réponse en chaîne et l'envoie
+  size_t response_strlen = http_response_strlen(res) + (size_t) file_size;
+  response = malloc(response_strlen + 1);
+  CHECK_NULL(response);
+  memset(response, 0, response_strlen + 1);
+  http_response_to_str(res, (size_t) file_size, response, response_strlen);
+  write_socket_tcp(client, response, response_strlen);
+
+  r = 0;
+free:
+  if (fd > 0) {
+    close(fd);
+  }
+  SAFE_FREE(res->body);
+  SAFE_FREE(response);
   return r;
 }
