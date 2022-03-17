@@ -5,6 +5,7 @@
 
 #define VERBOSE
 #define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,17 +41,20 @@
 
 #define DEFAULT_BACKLOG 100
 
-
 // Dossier racine où se trouvent les différents fichiers
 #define DEFAULT_WEB_BASE "./www"
 
-#define DEFAULT_404_FILE "./www/404.html"
+#define DEFAULT_404_FILE "./www/status/404.html"
+
+#define DEFAULT_304_FILE "./www/status/304.html"
 
 #define MAX_REQUEST_STRLEN 4096
 
 #define MIME_FINDER_FILE "./utils/mime.types"
 
 #define DATE_MAX_STRLEN 24
+
+#define HTTP_DATE_MAX_STRLEN 29
 
 /*
  * Types de données
@@ -310,6 +314,8 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
   int r = -1;
   // Le "- 4" prend en compte le UL et les () de SIZE_MAX
   char file_size_str[strlen(TOSTRING(SIZE_MAX)) - 4 + 1];
+  char if_modified_date[HTTP_DATE_MAX_STRLEN + 1];
+  memset(if_modified_date, 0, HTTP_DATE_MAX_STRLEN + 1);
   char *response = NULL;
 
   // Ouvre le fichier demandé et calcule sa taille
@@ -319,9 +325,26 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
     send_http_response(client, req, res, 404, DEFAULT_404_FILE);
     goto free;
   }
-  off_t file_size;
-  CHECK_ERR_AND_FREE((int) (file_size = lseek(fd, 0, SEEK_END)), -1);
-  CHECK_ERR_AND_FREE((int) (lseek(fd, 0, SEEK_SET)), -1);
+
+  // Gestion du If-Modified-Since
+  struct stat stats;
+  CHECK_ERR_AND_FREE(stat(file_path, &stats), -1);
+  if (http_req_get_header(req, IF_MODIFIED_SINCE, if_modified_date, 
+        HTTP_DATE_MAX_STRLEN) > 0) {
+    // Récupère la date de modification du fichier
+    time_t file_timestamp = stats.st_mtim.tv_sec;
+    // Récupère la date http et la converti en time_t
+    struct tm if_modified_since_tm;
+    CHECK_NULL(strptime(if_modified_date, "%a, %d %b %Y %H:%M:%S GMT", 
+                  &if_modified_since_tm));
+    time_t if_modified_timestamp;
+    CHECK_ERR_AND_FREE(mktime(&if_modified_since_tm), -1);
+    // Comparaison et envoi d'un code 304 si besoin
+    if (file_timestamp < if_modified_timestamp) {
+      send_http_response(client, req, res, 304, DEFAULT_304_FILE);
+      goto free;
+    }
+  }
 
   // Version et statut
   res->version = 1.0;
@@ -332,22 +355,22 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
         res, CONTENT_TYPE, get_mime_type(finder, file_path)), -1
   );
   // Header : Content-Length
-  sprintf(file_size_str, "%zu", (size_t) file_size);
+  sprintf(file_size_str, "%zu", (size_t) stats.st_size);
   CHECK_ERR_AND_FREE(
     http_response_add_header(res, CONTENT_LENGTH, file_size_str), -1
   );
   // Corps de la réponse
   ssize_t readed;
-  res->body = malloc((size_t) file_size);
+  res->body = malloc((size_t) stats.st_size);
   CHECK_NULL(res->body);
-  CHECK_ERR_AND_FREE(readed = read(fd, res->body, (size_t) file_size), -1);
+  CHECK_ERR_AND_FREE(readed = read(fd, res->body, (size_t) stats.st_size), -1);
 
   // Convertit la réponse en chaîne et l'envoie
-  size_t response_strlen = http_response_strlen(res) + (size_t) file_size;
+  size_t response_strlen = http_response_strlen(res) + (size_t) stats.st_size;
   response = malloc(response_strlen + 1);
   CHECK_NULL(response);
   memset(response, 0, response_strlen + 1);
-  http_response_to_str(res, (size_t) file_size, response, response_strlen);
+  http_response_to_str(res, (size_t) stats.st_size, response, response_strlen);
   write_socket_tcp(client, response, response_strlen);
 
   r = 0;
