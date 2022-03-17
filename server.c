@@ -323,14 +323,16 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
   if (strstr(file_path, "../") != NULL || (fd = open(file_path, O_RDONLY)) < 0) {
     // Si celui-ci n'existe pas on renvoie une erreur 404
     send_http_response(client, req, res, 404, DEFAULT_404_FILE);
+    r = 1;
     goto free;
   }
 
   // Gestion du If-Modified-Since
   struct stat stats;
   CHECK_ERR_AND_FREE(stat(file_path, &stats), -1);
-  if (http_req_get_header(req, IF_MODIFIED_SINCE, if_modified_date, 
-        HTTP_DATE_MAX_STRLEN) > 0) {
+  if (strcmp(DEFAULT_304_FILE, file_path) != 0 
+      && http_req_get_header(req, IF_MODIFIED_SINCE, if_modified_date, 
+          HTTP_DATE_MAX_STRLEN) > 0) {
     // Récupère la date de modification du fichier
     time_t file_timestamp = stats.st_mtim.tv_sec;
     // Récupère la date http et la converti en time_t
@@ -338,10 +340,12 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
     CHECK_NULL(strptime(if_modified_date, "%a, %d %b %Y %H:%M:%S GMT", 
                   &if_modified_since_tm));
     time_t if_modified_timestamp;
-    CHECK_ERR_AND_FREE(mktime(&if_modified_since_tm), -1);
+    CHECK_ERR_AND_FREE(if_modified_timestamp = mktime(&if_modified_since_tm), 
+      -1);
     // Comparaison et envoi d'un code 304 si besoin
     if (file_timestamp < if_modified_timestamp) {
       send_http_response(client, req, res, 304, DEFAULT_304_FILE);
+      r = 1;
       goto free;
     }
   }
@@ -373,7 +377,7 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
   http_response_to_str(res, (size_t) stats.st_size, response, response_strlen);
   write_socket_tcp(client, response, response_strlen);
 
-  r = 0;
+  r = 1;
 free:
   if (fd > 0) {
     close(fd);
