@@ -7,7 +7,8 @@ port: 8080
 # Backlog (File d'attente)
 backlog: 10
 
-timeout: 2
+# Timeout des requêtes
+timeout: 30
 
 # Dossier où se trouvent les fichiers du serveur web depuis server.c
 www: "./www"
