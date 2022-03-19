@@ -1,5 +1,3 @@
-// TODO : Select pour lire la requête
-
 #define VERBOSE
 
 #define _POSIX_C_SOURCE 200809L
@@ -44,9 +42,15 @@
 // Dossier racine où se trouvent les différents fichiers
 #define DEFAULT_WEB_BASE "./www"
 
-#define DEFAULT_404_FILE "./www/status/404.html"
+// Fichiers de statut en cas d'erreur
 
 #define DEFAULT_304_FILE "./www/status/304.html"
+
+#define DEFAULT_400_FILE "./www/status/400.html"
+
+#define DEFAULT_404_FILE "./www/status/404.html"
+
+#define DEFAULT_500_FILE "./www/status/500.html"
 
 #define MAX_REQUEST_STRLEN 4096
 
@@ -235,7 +239,7 @@ void *send_response(void *arg) {
 
   // Initialisation des variables
   http_request *req = NULL;
-  http_response *res = NULL;
+  http_response *res = http_response_empty();
   char file_path[MAX_URI_STRLEN + strlen(web_base) + 2];
 
   // Lecture de la requête
@@ -248,12 +252,25 @@ void *send_response(void *arg) {
   if (read_r == 0) {
     goto free;
   }
+
   // Au cas où le navigateur fasse une requête vide
   if (strlen(msg) == 0) {
     goto free;
   }
+
   // Transforme la chaîne en une structure http_request
-  CHECK_NULL(req = str_to_http_request(msg, &r));
+  if ((req = str_to_http_request(msg, &r)) == NULL) {
+    if (r <= BAD_REQUEST) {
+      CHECK_ERR_AND_FREE(
+        send_http_response(client, req, res, 400, DEFAULT_400_FILE), ERR
+      );
+    } else {
+      CHECK_ERR_AND_FREE(
+        send_http_response(client, req, res, 500, DEFAULT_500_FILE), ERR
+      );
+    }
+    goto free;
+  }
 
   // Récupère l'URI afin de créer le chemin vers le fichier demandé
   char uri_base[MAX_URI_STRLEN + 1];
@@ -271,8 +288,7 @@ void *send_response(void *arg) {
     log_in_file(requests_log_fd, "A client requested %s\n", uri_base), ERR
   );
 
-  // Créé la réponse et la remplit avec les données du fichier
-  res = http_response_empty();
+  // Créé la réponse et la remplit avec les données du fichier;
   CHECK_NULL(res);
   // Envoi la réponse
   CHECK_ERR_AND_FREE(send_http_response(client, req, res, 200, file_path), ERR);
@@ -339,8 +355,9 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
   struct stat stats;
   CHECK_ERR_AND_FREE(stat(file_path, &stats), -1);
   if (strcmp(DEFAULT_304_FILE, file_path) != 0 
+      && req != NULL 
       && http_req_get_header(req, IF_MODIFIED_SINCE, if_modified_date, 
-          HTTP_DATE_MAX_STRLEN) > 0) {
+            HTTP_DATE_MAX_STRLEN) > 0) {
     // Récupère la date de modification du fichier
     time_t file_timestamp = stats.st_mtim.tv_sec;
     // Récupère la date http et la converti en time_t

@@ -96,3 +96,11 @@
 [Sat Mar 19 18:43:38 2022]: A client requested /index.html
 [Sat Mar 19 18:47:06 2022]: A client requested /index.html
 [Sat Mar 19 18:47:26 2022]: A client requested /index.html
+[Sat Mar 19 18:58:38 2022]: A client requested ../server.c
+[Sat Mar 19 18:59:52 2022]: A client requested ../server.c
+[Sat Mar 19 19:00:23 2022]: A client requested ../server.c
+[Sat Mar 19 19:01:02 2022]: A client requested ../server.c
+[Sat Mar 19 19:01:24 2022]: A client requested /../server.c
+[Sat Mar 19 19:11:32 2022]: A client requested /../server.c
+[Sat Mar 19 19:16:01 2022]: A client requested /index.html
+[Sat Mar 19 19:17:12 2022]: A client requested /index.html
