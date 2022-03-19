@@ -52,6 +52,8 @@
 
 #define DEFAULT_500_FILE "./www/status/500.html"
 
+#define DEFAULT_501_FILE "./www/status/501.html"
+
 #define MAX_REQUEST_STRLEN 4096
 
 #define MIME_FINDER_FILE "./utils/mime.types"
@@ -269,6 +271,14 @@ void *send_response(void *arg) {
         send_http_response(client, req, res, 500, DEFAULT_500_FILE), ERR
       );
     }
+    goto free;
+  }
+
+  // Vérification de la méthode
+  if (strcmp(req->method, "GET") != 0) {
+    CHECK_ERR_AND_FREE(
+      send_http_response(client, req, res, 501, DEFAULT_501_FILE), ERR
+    );
     goto free;
   }
 
