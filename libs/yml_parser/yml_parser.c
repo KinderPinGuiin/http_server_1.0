@@ -145,6 +145,7 @@ yml_parser *init_yml_parser(const char *path, int *error) {
     return NULL;
   }
   yml_hash_map *hash_map = malloc(sizeof(*hash_map));
+  memset(hash_map, 0, sizeof(*hash_map));
   if (hash_map == NULL) {
     FILL_ERROR(YML_NOT_ENOUGH_MEMORY);
     free(parser);
