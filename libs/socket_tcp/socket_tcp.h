@@ -93,6 +93,23 @@ ssize_t read_socket_tcp(const socket_tcp *nsocket, void *buffer,
     size_t length);
 
 /**
+ * Opère le même travail que read_socket_tcp tout en gérant un timeout. stop 
+ * permet d'ajouter une condition d'arrêt à la lecture.
+ * 
+ * @param nsocket La socket sur laquelle lire.
+ * @param buffer  Le buffer dans lequel stocker le message lu.
+ * @param length  La longueur maximum à lire.
+ * @param timeout Le timeout exprimé en secondes.
+ * @param stop    Une fonction renvoyant 1 si la lecture doit se stopper et 0
+ *                sinon.
+ * 
+ * @return        Le nombre d'octets lus ou -1 en cas d'erreur. 0 si le timeout
+ *                a été atteint.
+ */
+ssize_t read_socket_tcp_timeout(const socket_tcp *nsocket, void *buffer, 
+    size_t length, time_t timeout, int (*stop)(const void *buff));
+
+/**
  * Ferme la socket associée à socket. Renvoie 0 en cas de succès et -1 sinon.
  * 
  * @param socket La socket_tcp à fermer.

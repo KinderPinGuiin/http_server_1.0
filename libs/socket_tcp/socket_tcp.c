@@ -1,9 +1,13 @@
 #define VERBOSE
 
+#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 #include "c_utils.h"
 #include "adresse_internet.h"
 
@@ -151,6 +155,40 @@ ssize_t read_socket_tcp(const socket_tcp *nsocket, void *buffer,
 
 free:
   return r;
+}
+
+ssize_t read_socket_tcp_timeout(const socket_tcp *nsocket, void *buffer, 
+    size_t length, time_t timeout, int (*stop)(const void *buff)) {
+  ssize_t r = -1;
+  CHECK_NULL(nsocket);
+  CHECK_NULL(buffer);
+  if (nsocket->socket == -1) goto free;
+  // Création du set de fd
+  fd_set set;
+  FD_ZERO(&set);
+  FD_SET(nsocket->socket, &set);
+  // Création du timeout
+  struct timeval tmv;
+  memset(&tmv, 0, sizeof(tmv));
+  tmv.tv_sec = timeout;
+  // Lecture avec select
+  int select_r = 1;
+  ssize_t readed = 0;
+  while ((select_r = select(nsocket->socket + 1, &set, NULL, NULL, &tmv)) > 0) {
+    readed += recv(nsocket->socket, &((char *) buffer)[readed], length - (size_t) readed, 0);
+    if (stop(buffer)) {
+      break;
+    }
+    tmv.tv_sec = timeout;
+  }
+  if (select_r == 0) {
+    r = 0;
+  } else if (select_r < 0) {
+    r = -1;
+  }
+
+free:
+  return r <= 0 ? r : readed;
 }
 
 int close_socket_tcp(socket_tcp *socket) {

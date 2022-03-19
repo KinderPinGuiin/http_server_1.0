@@ -1,9 +1,7 @@
-// TODO : Liste des descripteurs / free tous les threads
 // TODO : Select pour lire la requête
-// TODO : If-Modified-Since
-// TODO : Changer l'image
 
 #define VERBOSE
+
 #define _POSIX_C_SOURCE 200809L
 #define _GNU_SOURCE
 
@@ -108,6 +106,8 @@ int log_in_file(int fd, const char *format, ...);
  */
 int send_http_response(socket_tcp *client, http_request *req, http_response *res, 
     int status, const char *file_path);
+
+int http_request_ends_with_2_crlf(const char *request);
 
 // Sockets
 socket_tcp *sock = NULL;
@@ -239,7 +239,12 @@ void *send_response(void *arg) {
   // Lecture de la requête
   char msg[MAX_REQUEST_STRLEN + 1];
   memset(msg, 0, MAX_REQUEST_STRLEN + 1);
-  read_socket_tcp(client, msg, MAX_REQUEST_STRLEN);
+  ssize_t read_r = read_socket_tcp_timeout(client, msg, MAX_REQUEST_STRLEN, 10, 
+      (int (*)(const void *)) http_request_ends_with_2_crlf);
+  if (read_r == 0) {
+    fprintf(stderr, "Timeout\n");
+    goto free;
+  }
   // Au cas où le navigateur fasse une requête vide
   if (strlen(msg) == 0) {
     goto free;
@@ -337,6 +342,7 @@ int send_http_response(socket_tcp *client, http_request *req, http_response *res
     time_t file_timestamp = stats.st_mtim.tv_sec;
     // Récupère la date http et la converti en time_t
     struct tm if_modified_since_tm;
+    memset(&if_modified_since_tm, 0, sizeof(struct tm));
     CHECK_NULL(strptime(if_modified_date, "%a, %d %b %Y %H:%M:%S GMT", 
                   &if_modified_since_tm));
     time_t if_modified_timestamp;
@@ -385,4 +391,8 @@ free:
   SAFE_FREE(res->body);
   SAFE_FREE(response);
   return r;
+}
+
+int http_request_ends_with_2_crlf(const char *request) {
+  return strcmp(&request[strlen(request) - 4], "\r\n\r\n") == 0 ? 1 : 0;
 }
