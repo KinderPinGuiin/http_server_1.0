@@ -39,6 +39,8 @@
 
 #define DEFAULT_BACKLOG 100
 
+#define DEFAULT_TIMEOUT 15
+
 // Dossier racine où se trouvent les différents fichiers
 #define DEFAULT_WEB_BASE "./www"
 
@@ -239,10 +241,11 @@ void *send_response(void *arg) {
   // Lecture de la requête
   char msg[MAX_REQUEST_STRLEN + 1];
   memset(msg, 0, MAX_REQUEST_STRLEN + 1);
-  ssize_t read_r = read_socket_tcp_timeout(client, msg, MAX_REQUEST_STRLEN, 10, 
-      (int (*)(const void *)) http_request_ends_with_2_crlf);
+  int timeout = DEFAULT_TIMEOUT;
+  CHECK_ERR_AND_FREE(get(conf, "timeout", &timeout), ERR);
+  ssize_t read_r = read_socket_tcp_timeout(client, msg, MAX_REQUEST_STRLEN, 
+      (time_t) timeout, (int (*)(const void *)) http_request_ends_with_2_crlf);
   if (read_r == 0) {
-    fprintf(stderr, "Timeout\n");
     goto free;
   }
   // Au cas où le navigateur fasse une requête vide
