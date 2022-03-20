@@ -2,7 +2,7 @@
 ip: "127.0.0.1"
 
 # Port
-port: 80
+port: 8080
 
 # Backlog (File d'attente)
 backlog: 10
