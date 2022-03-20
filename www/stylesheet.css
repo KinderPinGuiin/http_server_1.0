@@ -1,8 +1,63 @@
 body {
-    background-color: gray;
+    background: #00B4DB;
+    background: -webkit-linear-gradient(to right, #0083B0, #00B4DB);
+    background: linear-gradient(to right, #0083B0, #00B4DB);
 }
 
-img {
-    display: block;
+h1{
+    text-align: center;
+    font-family: Arial, Helvetica, sans-serif;
+    text-transform: capitalize;
+}
+
+h2 {
+    text-align: center;
+    font-family: Arial, Helvetica, sans-serif;
+    border-top: 1px solid black;
+    width: 50%;
+    margin: auto;
+    padding: 10px;
+}
+
+.ingredients {
+    display: flex;
+    justify-content: space-around;
+    margin: 50px;
+}
+
+.card {
+    background-color: white;
+    display: flex;
+    width: 20%;
     height: 50vh;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0px 0px 20px 5px rgba(0, 0, 0, 0.75);
+    -webkit-box-shadow: 0px 0px 20px 5px rgba(0, 0, 0, 0.75);
+    -moz-box-shadow: 0px 0x 20px 5px rgba(0, 0, 0, 0.75);
+    transition-duration: .25s;
+}
+
+.card:hover {
+    box-shadow: 0px 0px 20px 5px rgb(149, 149, 255);
+    -webkit-box-shadow: 0px 0px 20px 5px rgb(149, 149, 255);
+    -moz-box-shadow: 0px 0x 20px 5px rgb(149, 149, 255);
+}
+
+.card img {
+    width: 50%;
+}
+
+.card span {
+    text-align: center;
+}
+
+.tutoriel video {
+    display: block;
+    margin: auto;
+    width: 70vw;
+    padding: 20px;
 }
